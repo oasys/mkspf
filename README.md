@@ -50,7 +50,7 @@ mkspf           IN      TXT     ("v=spf1"
 
 Right now, the script builds multiple TXT RR of <255 character each.
 This method only allows for 8 of these (plus the SPF record with the
-incluedes, and the main record with the redirect) before it would reach
+includes, and the main record with the redirect) before it would reach
 the 10-query limit.  The next step would be to generate multiple strings
 for each TXT record.
 
@@ -71,6 +71,7 @@ transparently joining multiple TXT records for the same label.
 ## History
 
 - initial commit
+- README edits
 
 ## Credits
 
