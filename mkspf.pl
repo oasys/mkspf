@@ -1,13 +1,14 @@
 #!/usr/bin/perl
 
 # script to expand/flatten SPF records
-# Fri Mar  4 15:15:22 EST 2016 jason@oasys.net
+# Fri Feb 23 15:27:06 EST 2018 jason@oasys.net
 
 # Provide path to the zone file (assumed to be same as domain name) as only
 # argument on the commandline.  Script will search for a 'mkspf' TXT record
 # and output a file for inclusion in the main zone.
 
 use strict;
+use warnings;
 use Net::DNS;
 use Net::CIDR::Lite;
 use File::Basename;
@@ -17,11 +18,10 @@ my $net4   = new Net::CIDR::Lite;
 my $net6   = new Net::CIDR::Lite;
 my $dns    = new Net::DNS::Resolver;
 
-# TODO: Look into implementing RFC4408-style multistring to grow beyond these limits
-#       (will then need to also consider max UDP packet sizes, at that point)
 my $MAXQ   = 10;  # RFC7208 query limit
-my $MAXS   = 255; # bind RR value limit
-my $MAXP   = 512; # UDP packet size limit (minus some arbitrary overhead?)
+my $MAXS   = 255; # bind TXT RR string size limit
+my $MAXP   = 512; # UDP payload limit
+my $MAXH   = 32;  # overhead estimate for non-answer data in DNS response
 
 my ($initial_domain, $path) = fileparse(shift);
 my $domain = $initial_domain;
@@ -32,33 +32,29 @@ process_spf($domain, read_file($domain));
 
 my $start  = 'v=spf1';
 my $end    = join(' ', @end);
-my $maxs   = $MAXS - length($start . ' ' . ' ' . $end);
+my $maxp   = $MAXP - $MAXH - length("_N._spf.$domain") - length("$start " . " $end");
 
 # build lists of netblocks to be included
-my $i=1;
+my $i = 1; @{$spf[$i]} = ();
 for ($net4->list(), $net6->list()) {
   my $proto = /:/ ? 6 : 4;
   my $add   = "ip${proto}:$_";
-  if (length($spf[$i]) == 0) {
-    $spf[$i]   = $add;
-  } elsif (length("$spf[$i] $add") > $maxs) {
-    $spf[++$i] = $add;
-  } else {
-    $spf[$i]  .= ' ' . $add;
-  }
+  @{$spf[++$i]} = () if length(join(' ', @{$spf[$i]}, $add)) > $maxp;
+  push @{$spf[$i]}, $add;
 }
-die "DNS query limit ($MAXQ) reached, exiting.\n" if scalar @spf > $MAXQ;
+
+# check against RFC2208 query limit, accounting for first redirect lookup
+$DEBUG && print "DNS query count: ", (scalar @spf + 1), "/$MAXQ\n";
+die "DNS query limit ($MAXQ) reached, exiting.\n" if (scalar @spf + 1) > $MAXQ;
+
+# build TXT records
 for (1 .. $#spf) {
-  $spf[0] .= ' ' if length($spf[0]);
-  $spf[0] .= "include:_$_._spf.${domain}";
-  die "length of spf record > $MAXS chars" if length($spf[0]) > $maxs;
-  $spf[$_] = format_rr("_$_._spf", 'TXT', $spf[$_]);
+  push @{$spf[0]}, "include:_$_._spf.${domain}";
+  $spf[$_] = format_rr("_$_._spf", 'TXT', @{$spf[$_]});
 }
-$spf[0] = format_rr('_spf', 'TXT', $spf[0]);
+$spf[0] = format_rr('_spf', 'TXT', @{$spf[0]});
 
 write_file($domain);
-
-
 
 sub get_spf {
   my $domain = shift;
@@ -106,7 +102,7 @@ sub parse_directive {
   $_ = shift;
   my $domain = shift;
   $DEBUG && print "parse_directive() $_ $domain\n";
-  next if /^v=spf1/;
+  return if /^v=spf1/;
   my ($modifier, $term, $value) =
      /^([-?+~])?(all|include|a|mx|ptr|ip4|ip6|exists|redirect)(?::(\S+))?$/;
   if      ($term eq 'include')  { get_spf($value);
@@ -160,7 +156,18 @@ sub get_rr {
 sub format_rr {
   my $label = shift;
   my $type  = shift;
-  my $value = shift;
   my $space = 16;
-  return "$label" . ' ' x ($space - length($label)) . "IN      $type" . " \"$start $value $end\"\n";
+  my @r=(); my $i=0; $r[0]='';
+  for ($start, @_, $end) {
+    # split each RR into multiple RFC4408-style strings
+    $r[++$i]='' if length("$r[$i] $_") > $MAXS;
+    if ($_ eq $start) {
+      $r[$i] = $_;
+    } else {
+      $r[$i] .= " $_";
+    }
+  }
+  return "$label" . ' ' x ($space - length($label)) . "IN      $type " .
+         join(' ', map { qq{"$_"} } @r) .
+         "\n";
 }

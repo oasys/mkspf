@@ -36,7 +36,7 @@ $ mkspf.pl ~/dns/bind/namedb/example.com
 ```
 
 Enter something like this in the `example.com` zonefile:
-```
+```zone
 @               IN      TXT     "v=spf1 redirect=_spf.example.com"
 $INCLUDE _spf.example.com
 mkspf           IN      TXT     ("v=spf1"
@@ -48,17 +48,20 @@ mkspf           IN      TXT     ("v=spf1"
 
 ## TODO
 
-Right now, the script builds multiple TXT RR of <255 character each.
-This method only allows for 8 of these (plus the SPF record with the
-includes, and the main record with the redirect) before it would reach
-the 10-query limit.  The next step would be to generate multiple strings
-for each TXT record.
+Initially, the script was limited to building a
+single <256 character string for each TXT record.
+[RFC4408](https://tools.ietf.org/html/rfc4408#section-3.1.3) details a
+way to supply multiple <256 character strings in a single TXT record in
+order to return more data per RR and still be under the 10-query limit.
+The RFC states that "If a published record contains multiple strings,
+then the record MUST be treated as if those strings are concatenated
+together without adding spaces."
 
-We'd have to then consider limiting to total size so that the response
-would be <512 byte UDP limit, to avoid failover to (often-filtered) TCP.
-
-It would also be prudent to verify if most SPF client libraries support
-transparently joining multiple TXT records for the same label.
+Of courre, we then have to consider limiting to total size so that
+the response would be <512 byte UDP limit, to avoid failover to
+(often-filtered) TCP with non-EDNS0-capable clients.  See this
+[summary](Overhead.md) for how we estimate the maximum size for the TXT
+data.
 
 ## Contributing
 
@@ -72,6 +75,7 @@ transparently joining multiple TXT records for the same label.
 
 - initial commit
 - README edits
+- support multiple strings per TXT RR
 
 ## Credits
 
