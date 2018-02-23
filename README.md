@@ -46,7 +46,7 @@ mkspf           IN      TXT     ("v=spf1"
                                 " ~all")
 ```
 
-## TODO
+## Response size considerations
 
 Initially, the script was limited to building a
 single <256 character string for each TXT record.
