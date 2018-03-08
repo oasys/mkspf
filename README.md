@@ -57,7 +57,7 @@ The RFC states that "If a published record contains multiple strings,
 then the record MUST be treated as if those strings are concatenated
 together without adding spaces."
 
-Of courre, we then have to consider limiting to total size so that
+Of course, we then have to consider limiting to total size so that
 the response would be <512 byte UDP limit, to avoid failover to
 (often-filtered) TCP with non-EDNS0-capable clients.  See this
 [summary](Overhead.md) for how we estimate the maximum size for the TXT
