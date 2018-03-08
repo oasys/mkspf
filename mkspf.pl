@@ -38,6 +38,7 @@ my $maxp   = $MAXP - $MAXH - length("_N._spf.$domain") - length("$start " . " $e
 my $i = 1; @{$spf[$i]} = ();
 for ($net4->list(), $net6->list()) {
   my $proto = /:/ ? 6 : 4;
+  s|/128$|| if $proto == 6; s|/32$|| if $proto == 4;
   my $add   = "ip${proto}:$_";
   @{$spf[++$i]} = () if length(join(' ', @{$spf[$i]}, $add)) > $maxp;
   push @{$spf[$i]}, $add;
