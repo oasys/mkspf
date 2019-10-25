@@ -63,7 +63,7 @@ sub get_spf {
   my $query = $dns->search( $domain, 'TXT' ) or warn "no TXT record for $domain\n";
   foreach my $rr ( $query->answer ) {
     next unless $rr->type eq 'TXT' and $rr->txtdata =~ /^v=spf1/;
-    process_spf($domain, $rr->txtdata);
+    process_spf($domain, join('', $rr->txtdata));
   }
 }
 
