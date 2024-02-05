@@ -108,7 +108,7 @@ sub parse_directive {
      /^([-?+~])?(all|include|a|mx|ptr|ip4|ip6|exists|redirect)(?::(\S+))?$/;
   if      ($term eq 'include')  { get_spf($value);
   } elsif ($term eq 'redirect') { get_spf($value);
-  } elsif ($term eq 'a')        { add_ip(get_rr('A', $value));
+  } elsif ($term eq 'a')        { add_ip(get_rr('A', $value)); add_ip(get_rr('AAAA', $value));
   } elsif ($term eq 'mx')       { add_ip(get_rr('MX', $domain));
   } elsif ($term eq 'exists')   { warn "ignoring EXISTS:$value\n";
   } elsif ($term eq 'all')      { push @end, "${modifier}all" if $domain eq $initial_domain;
@@ -141,6 +141,8 @@ sub get_rr {
     foreach my $rr ( $query->answer ) {
       next unless $rr->type eq $type;
       if ($type eq 'A') {
+        push(@rr, $rr->address);
+      } elsif ($type eq 'AAAA') {
         push(@rr, $rr->address);
       } elsif ($type eq 'MX') {
         push(@rr, get_rr('A', $rr->exchange));
